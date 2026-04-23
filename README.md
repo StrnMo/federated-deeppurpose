@@ -31,9 +31,9 @@ This project implements federated learning (FedAvg) for drug-target interaction 
 
 ## Technologies
 - Python 3.8+
-- PyTorch
-- DeepPurpose
+- DeepPurpose (TensorFlow/Keras backend)
 - NumPy, Pandas, Matplotlib
+- scikit-learn
 
 ## How to Run
 

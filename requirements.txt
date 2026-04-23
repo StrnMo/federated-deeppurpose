@@ -1,0 +1,5 @@
+numpy>=1.19.0
+pandas>=1.2.0
+matplotlib>=3.3.0
+DeepPurpose>=0.1.4
+scikit-learn>=0.24.0
