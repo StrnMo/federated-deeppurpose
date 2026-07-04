@@ -51,26 +51,27 @@ The **full FedAvg communication rounds** (clients sending weights to server, ser
 
 
 ### Project Structure
-
+```
 federated-deeppurpose/
-├── data/ # DAVIS dataset
-├── experiments/ # Centralized & FL runs
-│ ├── run_centralized.py # Baseline training
-│ └── run_federated.py # FL simulation
-├── federated/ # FL components
-│ ├── client.py # Client class with weight management
-│ ├── server.py # Server class with FedAvg aggregation
-│ └── fedavg.py # Training loop structure
-├── utils/ # Utilities
-│ ├── load_davis.py # Data loading
-│ └── data_split.py # Non-IID client creation
-├── results/ # Visualizations
-│ ├── centralized_loss_curve.png
-│ ├── client_data_distribution.png
-│ ├── combined_summary.png
-│ ├── federated_comparison.png
-│ └── performance_table.png
+├── data/                              # DAVIS dataset
+├── experiments/                       # Centralized & FL runs
+│   ├── run_centralized.py             # Baseline training
+│   └── run_federated.py               # FL simulation
+├── federated/                         # FL components
+│   ├── client.py                      # Client class with weight management
+│   ├── server.py                      # Server class with FedAvg aggregation
+│   └── fedavg.py                      # Training loop structure
+├── utils/                             # Utilities
+│   ├── load_davis.py                  # Data loading
+│   └── data_split.py                  # Non-IID client creation
+├── results/                           # Visualizations
+│   ├── centralized_loss_curve.png
+│   ├── client_data_distribution.png
+│   ├── combined_summary.png
+│   ├── federated_comparison.png
+│   └── performance_table.png
 └── README.md
+```
 
 ## 📝 Next Steps
 
