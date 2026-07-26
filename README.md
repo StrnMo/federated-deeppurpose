@@ -1,27 +1,72 @@
-# Federated Learning for Drug-Target Interaction Prediction
+# Federated Learning Framework for Drug–Target Interaction Prediction using DeepPurpose
 
-## Architecture Implementation (Work in Progress)
-This project implements the **architecture** for federated learning (FedAvg) for drug-target interaction prediction using the DAVIS dataset. The current implementation includes:
+## Overview
 
-- ✅ Data loading and preprocessing (DAVIS dataset)
-- ✅ Non-IID client partitioning (drug-based)
-- ✅ Centralized baseline training
-- ✅ FL Client/Server class structure
-- ✅ Model weight management infrastructure
+Drug–Target Interaction (DTI) prediction is one of the fundamental tasks in computational drug discovery and drug repurposing. Recent deep learning frameworks such as **DeepPurpose** have demonstrated strong predictive performance by learning representations of drugs and target proteins from large-scale datasets. However, these methods assume that all training data are centrally available, which is often unrealistic in biomedical research due to privacy regulations, institutional policies, and proprietary pharmaceutical data.
 
-### Under Development
+This project investigates how **Federated Learning (FL)** can be integrated with the DeepPurpose framework to enable collaborative training across multiple institutions while keeping local datasets private. The long-term objective is to develop a privacy-preserving federated framework for drug-target interaction prediction and drug repurposing under heterogeneous (Non-IID) data distributions.
 
-The **full FedAvg communication rounds** (clients sending weights to server, server aggregating, distributing back) are currently being implemented. The current code simulates independent client training to demonstrate the performance gap between centralized and isolated training.
+---
 
+## Current Project Status
 
-### 📊 Current Results
+**Project Stage:** Active Research & Software Development
 
-### Centralized Baseline (10 epochs)
-- **Concordance Index:** 0.731
-- **Test MSE:** 0.615
-- **Pearson Correlation:** 0.440
+This repository is currently under active development and serves as the software foundation for ongoing research in Federated Learning for drug-target interaction prediction.
 
-### Client Performance (Independent Training)
+### Currently Implemented
+
+- ✅ DAVIS dataset preprocessing and loading
+- ✅ Drug-based Non-IID client partitioning
+- ✅ Centralized DeepPurpose baseline
+- ✅ Federated Client architecture
+- ✅ Federated Server architecture
+- ✅ Model parameter management
+- ✅ Baseline experiments and visualization pipeline
+
+### Currently Under Development
+
+The complete Federated Learning optimization pipeline is being implemented.
+
+The current version already contains the software infrastructure required for Federated Learning, including the client-server architecture and model parameter management. However, the complete **FedAvg communication protocol** (global model synchronization, weighted aggregation, and iterative communication rounds) is still under development.
+
+At this stage, the repository provides **independent local client training** on heterogeneous datasets. These experiments are intended as **baseline experiments** for comparison with the future Federated Learning implementation and should not be interpreted as final Federated Learning results.
+
+---
+
+## Research Motivation
+
+Although DeepPurpose provides powerful deep learning models for drug-target interaction prediction, it assumes centralized access to biomedical datasets.
+
+In practice, biomedical data are naturally distributed across different organizations such as
+
+- hospitals,
+- pharmaceutical companies,
+- research laboratories,
+- medical centers.
+
+Because these institutions often cannot share sensitive data directly, Federated Learning offers an attractive solution by allowing collaborative model training without exchanging raw data.
+
+This project aims to bridge **DeepPurpose** and **Federated Learning** by developing a privacy-preserving framework for distributed drug-target interaction prediction.
+
+---
+
+## Current Baseline Experimental Results
+
+### Centralized Baseline
+
+Training was performed on the complete DAVIS dataset using the DeepPurpose MPNN-CNN architecture.
+
+| Metric | Value |
+|---------|------:|
+| Test MSE | 0.615 |
+| Pearson Correlation | 0.440 |
+| Concordance Index | 0.731 |
+
+### Independent Client Training (Non-IID)
+
+To investigate the effect of heterogeneous data distributions, the DAVIS dataset was partitioned into five drug-based Non-IID clients. Each client was trained independently without model aggregation.
+
 | Client | Samples | Unique Drugs | MSE | Pearson | C-Index |
 |--------|---------|--------------|-----|---------|---------|
 | Client 0 | 5,746 | 13 | 0.822 | 0.212 | 0.630 |
@@ -30,75 +75,90 @@ The **full FedAvg communication rounds** (clients sending weights to server, ser
 | Client 3 | 5,746 | 13 | 0.721 | 0.342 | 0.669 |
 | Client 4 | 7,072 | 16 | 0.894 | 0.369 | 0.698 |
 
-*These results demonstrate the performance variation across non-IID clients, highlighting the need for federated aggregation.*
+These baseline experiments demonstrate the impact of Non-IID data distributions on local model performance and provide a reference for evaluating future Federated Learning algorithms.
 
+---
 
-## Visualizations
+## Experimental Observations
 
-| Centralized Training | Federated vs Centralized |
-|:--------------------:|:------------------------:|
-| ![Centralized Loss](results/centralized_loss_curve.png) | ![Federated Comparison](results/federated_comparison.png) |
+The preliminary experiments reveal several important characteristics of distributed drug-target interaction prediction.
 
-| Client Data Distribution | Performance Summary |
-|:------------------------:|:-------------------:|
-| ![Client Distribution](results/client_data_distribution.png) | ![Performance Table](results/performance_table.png) |
+- The centralized model consistently outperforms independently trained local models, illustrating the performance loss caused by isolated learning.
 
-### Key Observations
+- Considerable variation exists across clients due to heterogeneous drug distributions, confirming the challenges introduced by Non-IID data.
 
-1. **Centralized performance gap**: Centralized model (C-Index: 0.731) outperforms individual clients (C-Index: 0.596–0.698), demonstrating the value of data sharing.
-2. **Non-IID heterogeneity**: Client 2 shows the lowest C-Index (0.596) with only 0.200 Pearson correlation, highlighting the challenge of skewed drug distributions.
-3. **Data imbalance**: Client 4 has the most samples (7,072) and unique drugs (16), correlating with the highest C-Index among clients (0.698).
+- Client performance appears to be influenced by both dataset size and drug diversity, motivating the need for collaborative Federated Learning optimization.
 
+These observations establish the motivation for implementing Federated Learning algorithms such as FedAvg and evaluating their ability to recover centralized performance while preserving data privacy.
 
-### Project Structure
-```
+---
+
+## Repository Structure
+
+```text
 federated-deeppurpose/
-├── data/                              # DAVIS dataset
-├── experiments/                       # Centralized & FL runs
-│   ├── run_centralized.py             # Baseline training
-│   └── run_federated.py               # FL simulation
-├── federated/                         # FL components
-│   ├── client.py                      # Client class with weight management
-│   ├── server.py                      # Server class with FedAvg aggregation
-│   └── fedavg.py                      # Training loop structure
-├── utils/                             # Utilities
-│   ├── load_davis.py                  # Data loading
-│   └── data_split.py                  # Non-IID client creation
-├── results/                           # Visualizations
-│   ├── centralized_loss_curve.png
-│   ├── client_data_distribution.png
-│   ├── combined_summary.png
-│   ├── federated_comparison.png
-│   └── performance_table.png
+
+├── data/                 # DAVIS dataset
+├── experiments/          # Centralized and FL experiments
+├── federated/            # Client, Server and aggregation modules
+├── utils/                # Dataset loading and preprocessing
+├── results/              # Experimental figures
 └── README.md
 ```
 
-## 📝 Next Steps
+---
 
-- [ ] Implement full FedAvg communication rounds with weight aggregation
-- [ ] Add cross-client evaluation metrics
-- [ ] Compare FL vs. local-only and centralized performance
-- [ ] Prepare manuscript for publication (code will be released upon submission)
+## Current Development Roadmap
 
+### Phase 1 (Completed)
+
+- ✅ DAVIS preprocessing
+- ✅ DeepPurpose centralized baseline
+- ✅ Non-IID client partitioning
+- ✅ Client-Server software architecture
+- ✅ Parameter management
+
+### Phase 2 (In Progress)
+
+- ⏳ Complete FedAvg implementation
+- ⏳ Global model synchronization
+- ⏳ Communication rounds
+- ⏳ Federated evaluation pipeline
+
+### Phase 3 (Planned)
+
+- Federated optimization under Non-IID settings
+- FedProx implementation
+- Personalized Federated Learning
+- Extensive benchmarking
+- Research paper preparation
+
+---
 
 ## Technologies
-- Python 3.8+
-- DeepPurpose (TensorFlow/Keras backend)
-- NumPy, Pandas, Matplotlib
-- scikit-learn
 
-## How to Run
+- Python
+- DeepPurpose
+- TensorFlow / Keras
+- NumPy
+- Pandas
+- scikit-learn
+- Matplotlib
+
+---
+
+## Running the Project
 
 ```bash
-# Install dependencies
 pip install -r requirements.txt
 
-# Run centralized baseline
 python experiments/run_centralized.py
 
-# Run federated learning simulation (work in progress)
 python experiments/run_federated.py
+```
 
-# Generate all plots
-python experiments/generate_plots.py
-``` 
+---
+
+## Disclaimer
+
+This repository is an active research project. Both the software architecture and the experimental pipeline are continuously evolving as part of ongoing work toward a complete Federated Learning framework for drug-target interaction prediction.
