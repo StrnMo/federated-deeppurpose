@@ -7,9 +7,11 @@ import numpy as np
 import os
 import ast
 
-def load_davis(zip_path="data/DAVIS.zip"):
+DEFAULT_ZIP = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "DAVIS.zip")
+
+def load_davis(zip_path=DEFAULT_ZIP):
     """Load DAVIS dataset from local ZIP file."""
-    
+
     if not os.path.exists(zip_path):
         raise FileNotFoundError(f"File not found: {zip_path}")
     

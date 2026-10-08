@@ -1,0 +1,111 @@
+{
+  "num_clients": 5,
+  "frac": [
+    0.7,
+    0.1,
+    0.2
+  ],
+  "seed": 42,
+  "stats": {
+    "client_0": {
+      "test": {
+        "n": 1149,
+        "pkd_mean": 5.3321,
+        "pkd_std": 0.8103,
+        "frac_pkd_5": 0.7807
+      },
+      "train": {
+        "n": 4022,
+        "pkd_mean": 5.3235,
+        "pkd_std": 0.814,
+        "frac_pkd_5": 0.7862
+      },
+      "val": {
+        "n": 575,
+        "pkd_mean": 5.2775,
+        "pkd_std": 0.7479,
+        "frac_pkd_5": 0.8122
+      }
+    },
+    "client_1": {
+      "test": {
+        "n": 1149,
+        "pkd_mean": 5.5032,
+        "pkd_std": 0.8772,
+        "frac_pkd_5": 0.644
+      },
+      "train": {
+        "n": 4022,
+        "pkd_mean": 5.5318,
+        "pkd_std": 0.896,
+        "frac_pkd_5": 0.6208
+      },
+      "val": {
+        "n": 575,
+        "pkd_mean": 5.5533,
+        "pkd_std": 0.918,
+        "frac_pkd_5": 0.6139
+      }
+    },
+    "client_2": {
+      "test": {
+        "n": 1149,
+        "pkd_mean": 5.2667,
+        "pkd_std": 0.679,
+        "frac_pkd_5": 0.7929
+      },
+      "train": {
+        "n": 4022,
+        "pkd_mean": 5.2614,
+        "pkd_std": 0.6543,
+        "frac_pkd_5": 0.7902
+      },
+      "val": {
+        "n": 575,
+        "pkd_mean": 5.238,
+        "pkd_std": 0.6036,
+        "frac_pkd_5": 0.8087
+      }
+    },
+    "client_3": {
+      "test": {
+        "n": 1149,
+        "pkd_mean": 5.4861,
+        "pkd_std": 0.947,
+        "frac_pkd_5": 0.6919
+      },
+      "train": {
+        "n": 4022,
+        "pkd_mean": 5.4587,
+        "pkd_std": 0.9318,
+        "frac_pkd_5": 0.7041
+      },
+      "val": {
+        "n": 575,
+        "pkd_mean": 5.547,
+        "pkd_std": 1.0256,
+        "frac_pkd_5": 0.6939
+      }
+    },
+    "client_4": {
+      "test": {
+        "n": 1415,
+        "pkd_mean": 5.621,
+        "pkd_std": 1.0295,
+        "frac_pkd_5": 0.6071
+      },
+      "train": {
+        "n": 4950,
+        "pkd_mean": 5.649,
+        "pkd_std": 1.0441,
+        "frac_pkd_5": 0.5903
+      },
+      "val": {
+        "n": 707,
+        "pkd_mean": 5.5513,
+        "pkd_std": 0.9536,
+        "frac_pkd_5": 0.6421
+      }
+    }
+  }
+}

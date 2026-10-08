@@ -1,0 +1,11 @@
+# Extra packages for Google Colab. Colab already provides torch, numpy, pandas, scipy,
+# scikit-learn, matplotlib and tensorboard; the notebook installs these with a constraints
+# file so Colab's versions are never replaced. DeepPurpose itself is installed with --no-deps.
+rdkit
+descriptastorus
+pandas-flavor
+xarray
+lifelines
+prettytable
+subword-nmt
+wget
