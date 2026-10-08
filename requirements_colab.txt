@@ -1,6 +1,10 @@
-# Extra packages for Google Colab. Colab already provides torch, numpy, pandas, scipy,
-# scikit-learn, matplotlib and tensorboard; the notebook installs these with a constraints
-# file so Colab's versions are never replaced. DeepPurpose itself is installed with --no-deps.
+# Packages needed on Google Colab for DeepPurpose 0.1.5 (MPNN-CNN) and this project.
+# The notebook installs this file with a constraints file pinning Colab's preinstalled
+# torch / numpy / pandas / scipy / scikit-learn / matplotlib / tensorboard, so those are
+# never replaced (they are listed here only so a missing one gets installed).
+# DeepPurpose itself is installed separately with --no-deps.
+
+# not preinstalled on Colab
 rdkit
 descriptastorus
 pandas-flavor
@@ -9,3 +13,14 @@ lifelines
 prettytable
 subword-nmt
 wget
+
+# usually preinstalled on Colab (kept at Colab's version by the constraints file)
+torch
+numpy
+pandas
+scipy
+scikit-learn
+matplotlib
+tensorboard
+tqdm
+requests
