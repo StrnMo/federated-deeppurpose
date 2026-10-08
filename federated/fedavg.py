@@ -20,17 +20,25 @@ from utils.trainer import cpu_state, eval_loader, finalize
 
 
 def run_fedavg(args, data, device, out_dir, ckpt_path=None):
-    clients = [FLClient(k, d["train"]) for k, d in enumerate(data["clients"])]
+    clients = [FLClient(k, d["train"], reset_optimizer=args.reset_client_optimizer)
+               for k, d in enumerate(data["clients"])]
     val_ds, test_ds = DTIDataset(data["global"]["val"]), DTIDataset(data["global"]["test"])
     sizes = [c.num_samples for c in clients]
 
-    model = build_model(device, args.seed)  # same initial weights for every client
+    # output bias starts at the sample-weighted mean of the client label means (= mean of all training labels),
+    # computed from per-client summaries only
+    label_mean = None
+    if args.init_bias == "label_mean":
+        label_mean = sum(c.label_mean * n for c, n in zip(clients, sizes)) / sum(sizes)
+    model = build_model(device, args.seed, label_mean)  # same initial weights for every client
     server = FLServer(cpu_state(model))
     start, best = 1, {"val_mse": float("inf"), "round": 0, "state": None}
 
     if ckpt_path:
         ck = load_checkpoint(ckpt_path, "cpu")
         server.global_weights = ck["global"]
+        for c, state in zip(clients, ck["client_optimizers"]):
+            c.optimizer_state = state
         set_rng_state(ck["rng"])
         start, best = ck["round"] + 1, ck["best"]
         print(f"Resumed from round {ck['round']} (best round {best['round']})")
@@ -69,6 +77,7 @@ def run_fedavg(args, data, device, out_dir, ckpt_path=None):
             client_csv.append(row)
 
         save_checkpoint(os.path.join(out_dir, "last.pt"), {"round": rnd, "global": server.get_global_weights(),
+                        "client_optimizers": [c.optimizer_state for c in clients],
                         "best": best, "rng": rng_state()})
         if improved:
             save_checkpoint(os.path.join(out_dir, "best.pt"), {"round": rnd, "model": best["state"]})

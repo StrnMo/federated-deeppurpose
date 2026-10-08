@@ -72,3 +72,85 @@ All three methods use the same data split, so their test scores can be compared 
 - **Centralized** (`run_centralized.py`): one model sees all training data. This is the upper bound.
 - **Local-only** (`run_local.py`): each client trains alone and never communicates. This is the lower bound.
 - **FedAvg** (`run_federated.py`): clients share weights, not data. It is expected to land in between.
+
+---
+
+## Colab notebook: reliable clone and install (`notebooks/colab_run.ipynb`)
+
+### What went wrong
+On Colab the clone step failed, so `/content/federated-deeppurpose` never existed. The notebook kept
+going anyway: `!git clone` and `!pip install` print an error but do not stop the notebook. pip then
+could not find `requirements_colab.txt`, nothing was installed, and the first visible error came much
+later: `No module named 'lifelines'` when importing DeepPurpose. That message pointed at the wrong problem.
+
+### What changed
+- **Fixed paths.** `REPO_DIR = /content/federated-deeppurpose` and the requirements path are set
+  once in the config cell. Every later cell uses these absolute paths, including the training command.
+- **Clone cell stops on failure.** It first checks that `REPO_URL` has been filled in. It then clones
+  the repo, or updates it if it is already there, and raises a clear error if git fails or
+  `requirements_colab.txt` is missing. The error names the usual causes: a wrong URL, a branch that
+  doesn't exist on GitHub, or a private repo without a token. Any token in the URL is masked in printed
+  output. Finally it `%cd`s into the repo and prints the repo folder, current branch and commit.
+- **Install cell stops on failure.** pip runs from Python and the notebook raises an error if pip
+  fails, instead of carrying on silently.
+- **Git never waits for a login.** Git runs with terminal prompts and credential helpers turned off,
+  so a wrong or private URL fails within seconds instead of hanging on a password prompt.
+- **Train cell stops on failure.** Training runs with the notebook's own Python (`sys.executable`, not
+  whichever `python` comes first on the PATH), shows its progress live, and raises an error if the
+  script crashes. Rerunning the cell resumes from the last checkpoint.
+- **Import check.** Before importing DeepPurpose, the notebook imports every package it needs one by
+  one and lists any that fail, so a missing package is named directly.
+- **`requirements_colab.txt` is complete.** It lists every package DeepPurpose 0.1.5 imports for
+  MPNN-CNN: rdkit, descriptastorus, pandas-flavor, xarray, lifelines, prettytable, subword-nmt and
+  wget, plus torch, numpy, pandas, scipy, scikit-learn, matplotlib, tensorboard, tqdm and requests.
+
+### How Colab's PyTorch stays untouched
+Before installing, the notebook writes Colab's installed versions of torch, numpy, pandas, scipy,
+scikit-learn, matplotlib and tensorboard to a *constraints file*. pip must keep those exact versions,
+so installing the requirements can add missing packages but never replace Colab's GPU build of torch.
+DeepPurpose is installed with `--no-deps`, because its own dependency list would pull in other torch versions.
+
+### NumPy 2
+Colab uses NumPy 2. DeepPurpose's code uses none of the NumPy names that NumPy 2 removed
+(`np.float`, `np.int`, `np.unicode_`, ...), so it runs unchanged.
+
+---
+
+## Fix: FedAvg predictions swinging up and down (Adam reset + output-bias init)
+
+### The bug
+In the first Colab test (5% subset, 30 rounds), validation MSE alternated between about 1 and 3 from
+round to round. Logging the mean prediction showed why: after each round **all** predictions moved
+up or down together by 1–3 pKd (val MSE ≈ bias² + 0.6), on the training set as well as on validation.
+
+The cause was that every client started a **fresh Adam optimizer each round**. Adam's very first step
+moves every weight by a full learning-rate step, however small the gradient is. With all weights moving at once, the
+model's output jumps by a large constant and overshoots the label mean. Next round, the same thing
+happens in the other direction.
+
+The test that proved it: FedAvg with a single client holding all the data. Averaging one client
+changes nothing, so this is just centralised training with Adam restarted every round. It swung
+just as much, while centralised training settled within 2 epochs. So aggregation, sample weighting
+and the non-IID split were not the cause.
+
+### The fix
+1. **Clients keep their Adam state between rounds.** Each client stores its optimizer state after
+   local training and reloads it next round, so Adam's step sizes stay calibrated. The states are
+   saved in `last.pt`, so resuming continues exactly. `--reset-client-optimizer` restores the old
+   behaviour for comparison.
+2. **Output bias starts at the mean training label** (all methods). An untrained model predicts
+   about 0, but labels are around 5.4 pKd, so early training was spent just moving the output up.
+   Now the model starts at the mean and can spend training on the differences between pairs.
+   - Centralised: mean of all training labels.
+   - Local-only: mean of that client's training labels.
+   - FedAvg: each client reports its sample count and label mean, and the server combines them as
+     `sum(n_k * mean_k) / sum(n_k)`. That equals the mean of all training labels, but no
+     individual labels leave a client.
+
+   `--init-bias none` turns this off.
+
+### Note
+Keeping Adam state on the client is a common FedAvg variant: the original FedAvg used plain SGD,
+which has no optimizer state to reset. The client's Adam statistics come from its previous local
+model, not the newly received global one. In practice this works well, and it is far better than
+resetting.

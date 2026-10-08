@@ -50,7 +50,8 @@ def train_supervised(args, train_df, val_df, test_df, out_dir, device, select_cl
     os.makedirs(out_dir, exist_ok=True)
     train_ds, val_ds, test_ds = DTIDataset(train_df), DTIDataset(val_df), DTIDataset(test_df)
 
-    model = build_model(device, args.seed)
+    label_mean = float(train_ds.labels.mean()) if args.init_bias == "label_mean" else None
+    model = build_model(device, args.seed, label_mean)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
     start, best = 1, {"val_mse": float("inf"), "epoch": 0, "state": None}
 

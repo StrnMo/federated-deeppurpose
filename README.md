@@ -124,6 +124,14 @@ python experiments/generate_plots.py
 
 Common options: `--resume`, `--seed`, `--lr`, `--batch-size`, `--num-workers`, `--subsample 0.05` (quick tests).
 
+Two training choices (see `docs/NOTES.md` for why):
+- **Output-bias initialisation (all methods):** the model's output bias starts at the mean training
+  label (pKd), so training does not begin from predictions of ~0. In FedAvg this mean is the
+  sample-weighted mean of the client label means. Disable with `--init-bias none`.
+- **Client optimizer state (FedAvg):** each client keeps its own Adam state between rounds. Resetting
+  Adam every round made all predictions swing up and down by 1–3 pKd from round to round. The old
+  behaviour is available with `--reset-client-optimizer`.
+
 Each run directory contains `config.json`, `last.pt` (checkpoint after every epoch/round), `best.pt`
 (lowest validation MSE), `metrics.csv` (one row per epoch/round), `client_metrics.csv` (per-client
 val/test metrics) and `final_metrics.json` (best model on val and test).

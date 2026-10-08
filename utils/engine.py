@@ -47,6 +47,8 @@ def add_common_args(parser):
     parser.add_argument("--num-clients", type=int, default=5)
     parser.add_argument("--subsample", type=float, default=None,
                         help="keep this fraction of every split (quick tests only)")
+    parser.add_argument("--init-bias", default="label_mean", choices=["label_mean", "none"],
+                        help="initialise the output-layer bias to the training-label mean")
     return parser
 
 
@@ -68,12 +70,19 @@ def set_seed(seed):
     torch.cuda.manual_seed_all(seed)
 
 
-def build_model(device, seed):
-    """MPNN-CNN Classifier, built like DeepPurpose's DBTA but without its file side effects."""
+def build_model(device, seed, label_mean=None):
+    """
+    MPNN-CNN Classifier, built like DeepPurpose's DBTA but without its file side effects.
+    If label_mean is given, the output-layer bias starts at it, so the untrained model predicts
+    roughly the mean pKd instead of ~0.
+    """
     torch.manual_seed(seed)
     config = generate_config(**MODEL_CONFIG)
     model = Classifier(MPNN(config["hidden_dim_drug"], config["mpnn_depth"]),
                        CNN("protein", **config), **config)
+    if label_mean is not None:
+        with torch.no_grad():
+            model.predictor[-1].bias.fill_(float(label_mean))
     return model.to(device)
 
 

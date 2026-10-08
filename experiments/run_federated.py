@@ -21,6 +21,8 @@ def main(argv=None):
                                                      formatter_class=argparse.RawDescriptionHelpFormatter))
     parser.add_argument("--rounds", type=int, default=30)
     parser.add_argument("--local-epochs", type=int, default=2)
+    parser.add_argument("--reset-client-optimizer", action="store_true",
+                        help="fresh Adam on every client each round (old behaviour; causes prediction-bias swings)")
     args = parser.parse_args(argv)
 
     ckpt = prepare_run_dir(args)
