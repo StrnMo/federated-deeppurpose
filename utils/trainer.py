@@ -17,7 +17,8 @@ import torch
 
 from utils.features import DTIDataset, make_loader
 from utils.engine import (build_model, train_one_epoch, evaluate, save_checkpoint, load_checkpoint,
-                          rng_state, set_rng_state, MetricsCSV, flat_metrics, client_rows, write_json)
+                          rng_state, set_rng_state, MetricsCSV, flat_metrics, client_rows, write_json,
+                          patience_exhausted)
 
 
 def cpu_state(model):
@@ -28,12 +29,14 @@ def eval_loader(dataset, args):
     return make_loader(dataset, args.batch_size, num_workers=args.num_workers)
 
 
-def finalize(model, best, val_ds, test_ds, args, device, out_dir, step_key, select_clients=None):
-    """Evaluate the best model on val and test and write final_metrics.json."""
+def finalize(model, best, val_ds, test_ds, args, device, out_dir, step_key, select_clients=None,
+             stopped_early=False):
+    """Evaluate the best model (lowest val MSE) on val and test and write final_metrics.json."""
     model.load_state_dict(best["state"])
     val = evaluate(model, val_ds, eval_loader(val_ds, args), device, clients=select_clients)
     test = evaluate(model, test_ds, eval_loader(test_ds, args), device)
     result = {f"best_{step_key}": best[step_key], "selection_clients": select_clients,
+              "stopped_early": stopped_early, "patience": args.patience,
               "val": {str(k): v for k, v in val.items()}, "test": {str(k): v for k, v in test.items()}}
     write_json(os.path.join(out_dir, "final_metrics.json"), result)
     t = test["all"]
@@ -67,7 +70,13 @@ def train_supervised(args, train_df, val_df, test_df, out_dir, device, select_cl
     metrics_csv = MetricsCSV(os.path.join(out_dir, "metrics.csv"), "epoch", keep)
     client_csv = MetricsCSV(os.path.join(out_dir, "client_metrics.csv"), "epoch", keep)
 
+    stopped_early = False
     for epoch in range(start, args.epochs + 1):
+        # checked before each epoch, so a resumed run that already stopped stays stopped
+        if patience_exhausted(args.patience, epoch - 1, best["epoch"]):
+            print(f"Early stopping: no val MSE improvement since epoch {best['epoch']} (patience {args.patience})")
+            stopped_early = True
+            break
         t0 = time.time()
         loader = make_loader(train_ds, args.batch_size, shuffle=True, seed=args.seed * 100003 + epoch,
                              num_workers=args.num_workers)
@@ -91,7 +100,7 @@ def train_supervised(args, train_df, val_df, test_df, out_dir, device, select_cl
             save_checkpoint(os.path.join(out_dir, "best.pt"), {"epoch": epoch, "model": best["state"]})
 
         print(f"epoch {epoch}/{args.epochs}  train {train_loss:.4f}  val MSE {val['all']['mse']:.4f} "
-              f"CI {val['all']['ci']:.4f}  test MSE {test['all']['mse']:.4f} CI {test['all']['ci']:.4f}  "
+              f"CI {val['all']['ci']:.4f} bias {val['all']['bias']:+.3f}  test MSE {test['all']['mse']:.4f} CI {test['all']['ci']:.4f}  "
               f"{time.time() - t0:.0f}s{'  *' if improved else ''}")
 
-    return finalize(model, best, val_ds, test_ds, args, device, out_dir, "epoch", select_clients)
+    return finalize(model, best, val_ds, test_ds, args, device, out_dir, "epoch", select_clients, stopped_early)

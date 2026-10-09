@@ -122,7 +122,9 @@ python experiments/run_federated.py   --rounds 30 --local-epochs 2 --output-dir 
 python experiments/generate_plots.py
 ```
 
-Common options: `--resume`, `--seed`, `--lr`, `--batch-size`, `--num-workers`, `--subsample 0.05` (quick tests).
+Common options: `--resume`, `--seed`, `--lr`, `--batch-size`, `--num-workers`, `--subsample 0.05` (quick tests),
+`--patience N` (early stopping: stop when val MSE has not improved for N epochs/rounds; off by default).
+The reported model is always the one with the lowest validation MSE.
 
 Two training choices (see `docs/NOTES.md` for why):
 - **Output-bias initialisation (all methods):** the model's output bias starts at the mean training

@@ -154,3 +154,55 @@ Keeping Adam state on the client is a common FedAvg variant: the original FedAvg
 which has no optimizer state to reset. The client's Adam statistics come from its previous local
 model, not the newly received global one. In practice this works well, and it is far better than
 resetting.
+
+---
+
+## Colab ran an old notebook; `.gitignore` encoding
+
+### What happened
+The Colab run used an old copy of the notebook (plain `!git clone`, relative `requirements_colab.txt`).
+The fixed notebook existed only on the `colab-ready` branch; `master`, GitHub's default branch, had none.
+The clone failed because `REPO_URL` was still the `YOUR_USERNAME` placeholder. For a repository that
+doesn't exist, GitHub asks for a username, which gives "could not read Username". Because the old cells
+don't stop on errors, the notebook continued without the code and failed later with `No module named 'lifelines'`.
+
+### What changed
+- `REPO_URL` in the notebook now points to the real (public) repository, so there is no placeholder to forget.
+- The work from `colab-ready` is merged into `master`, so the notebook opened from GitHub's default
+  branch is the current one and `BRANCH = "master"` clones the matching code.
+- `.gitignore` had been saved as UTF-16 (for example by PowerShell's `>` / `Out-File`). Git can only read
+  UTF-8, so all its rules were silently ignored. It is UTF-8 again. To edit it from PowerShell, use
+  `Add-Content -Encoding utf8` or an editor, not `>`.
+
+### How to open the notebook so it is never stale
+In Colab: **File → Open notebook → GitHub**, then pick `StrnMo/federated-deeppurpose`, branch `master`,
+`notebooks/colab_run.ipynb`. A copy saved to Drive earlier does not update when the repository changes.
+
+---
+
+## Bias column and early stopping
+
+### What changed
+- **`val_bias` / `test_bias` columns.** `metrics.csv` now records *mean prediction - mean label* for
+  every epoch/round; `client_metrics.csv` and `final_metrics.json` have a `bias` value as well. A
+  value near 0 means predictions are centred on the labels. A value that jumps up and down from
+  round to round is the symptom of the Adam-reset bug fixed earlier. The progress line printed during
+  training shows it too, and the notebook's results cell plots it.
+- **Early stopping (`--patience N`, off by default).** Training stops once validation MSE has not
+  improved for N epochs (centralized, and each local-only client) or N rounds (FedAvg). Planned
+  values: 15 for centralized/local-only, 10 for FedAvg. In the notebook, set `PATIENCE`.
+
+### How it works
+Before each epoch/round the script checks: *(last finished step) - (best step) >= N*. If so, it stops.
+- **The best model is still the one reported.** Stopping only ends training early. The final
+  evaluation still loads the model with the lowest validation MSE, exactly as without early stopping.
+- **Resume works.** The check uses the best step stored in the checkpoint. A run that already stopped
+  stays stopped when resumed, and a run interrupted halfway through its patience continues counting
+  from where it was. `--patience` may be changed when resuming, like `--epochs`.
+- `final_metrics.json` records `stopped_early` and `patience`.
+
+### Checked
+The smoke test runs with learning rate 0, so validation MSE never changes and the stopping point is
+known in advance. It checks that training stops at the right step, that resuming a stopped run trains
+nothing more, that a resumed half-finished run stops at the right later step, and that the reported
+model is the best (first) one.

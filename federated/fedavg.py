@@ -15,7 +15,7 @@ from federated.client import FLClient
 from federated.server import FLServer
 from utils.features import DTIDataset
 from utils.engine import (build_model, evaluate, save_checkpoint, load_checkpoint, rng_state, set_rng_state,
-                          MetricsCSV, flat_metrics, client_rows)
+                          MetricsCSV, flat_metrics, client_rows, patience_exhausted)
 from utils.trainer import cpu_state, eval_loader, finalize
 
 
@@ -47,7 +47,13 @@ def run_fedavg(args, data, device, out_dir, ckpt_path=None):
     metrics_csv = MetricsCSV(os.path.join(out_dir, "metrics.csv"), "round", keep)
     client_csv = MetricsCSV(os.path.join(out_dir, "client_metrics.csv"), "round", keep)
 
+    stopped_early = False
     for rnd in range(start, args.rounds + 1):
+        # checked before each round, so a resumed run that already stopped stays stopped
+        if patience_exhausted(args.patience, rnd - 1, best["round"]):
+            print(f"Early stopping: no val MSE improvement since round {best['round']} (patience {args.patience})")
+            stopped_early = True
+            break
         t0 = time.time()
         global_weights = server.get_global_weights()
 
@@ -83,7 +89,7 @@ def run_fedavg(args, data, device, out_dir, ckpt_path=None):
             save_checkpoint(os.path.join(out_dir, "best.pt"), {"round": rnd, "model": best["state"]})
 
         print(f"round {rnd}/{args.rounds}  train {train_loss:.4f}  val MSE {val['all']['mse']:.4f} "
-              f"CI {val['all']['ci']:.4f}  test MSE {test['all']['mse']:.4f} CI {test['all']['ci']:.4f}  "
+              f"CI {val['all']['ci']:.4f} bias {val['all']['bias']:+.3f}  test MSE {test['all']['mse']:.4f} CI {test['all']['ci']:.4f}  "
               f"{time.time() - t0:.0f}s{'  *' if improved else ''}")
 
-    return finalize(model, best, val_ds, test_ds, args, device, out_dir, "round")
+    return finalize(model, best, val_ds, test_ds, args, device, out_dir, "round", stopped_early=stopped_early)

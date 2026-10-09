@@ -29,7 +29,7 @@ MODEL_CONFIG = dict(
 )
 
 # Arguments that may change when resuming a run
-RESUMABLE_ARGS = {"resume", "output_dir", "epochs", "rounds", "device", "num_workers"}
+RESUMABLE_ARGS = {"resume", "output_dir", "epochs", "rounds", "device", "num_workers", "patience"}
 
 
 # ---------------------------------------------------------------- setup
@@ -49,7 +49,15 @@ def add_common_args(parser):
                         help="keep this fraction of every split (quick tests only)")
     parser.add_argument("--init-bias", default="label_mean", choices=["label_mean", "none"],
                         help="initialise the output-layer bias to the training-label mean")
+    parser.add_argument("--patience", type=int, default=None,
+                        help="early stopping: stop when val MSE has not improved for this many epochs/rounds "
+                             "(default: off)")
     return parser
+
+
+def patience_exhausted(patience, last_step, best_step):
+    """True if early stopping should end training: no val improvement in the last `patience` steps."""
+    return bool(patience) and last_step - best_step >= patience
 
 
 def get_device(name="auto"):
@@ -130,7 +138,9 @@ def regression_metrics(y, p):
     except Exception:
         ci = float("nan")
     return {"n": int(len(y)), "mse": mse, "pearson": pearson, "ci": ci,
-            "r2": 1 - mse / var if var > 0 else float("nan")}
+            "r2": 1 - mse / var if var > 0 else float("nan"),
+            # mean prediction - mean label: a constant offset of all predictions
+            "bias": float(p.mean() - y.mean()) if len(y) else float("nan")}
 
 
 def evaluate(model, dataset, loader, device, clients=None):
@@ -246,7 +256,8 @@ def client_rows(step_key, step, split, results):
     """Long-format rows (one per client and one for 'all') for client_metrics.csv."""
     rows = []
     for c, m in results.items():
-        rows.append({step_key: step, "split": split, "client": c, **{k: m[k] for k in ("n", "mse", "pearson", "ci", "r2")}})
+        rows.append({step_key: step, "split": split, "client": c,
+                     **{k: m[k] for k in ("n", "mse", "pearson", "ci", "r2", "bias")}})
     return rows
 
 

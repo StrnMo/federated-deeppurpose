@@ -39,6 +39,50 @@ def check_run(out, step, n_steps, n_clients=5, files=("last.pt", "best.pt", "con
         return json.load(f)
 
 
+def check_early_stopping(root):
+    """
+    With --lr 0 the weights never change, so val MSE is identical every step: step 1 stays best and
+    early stopping must trigger exactly `patience` steps later, also across resumes.
+    """
+    def final(out):
+        with open(os.path.join(out, "final_metrics.json")) as f:
+            return json.load(f)
+
+    def steps(out, key):
+        return list(pd.read_csv(os.path.join(out, "metrics.csv"))[key])
+
+    lr0 = COMMON + ["--lr", "0"]
+
+    # centralized: patience 1 -> epochs 1, 2 then stop; resuming a stopped run trains nothing more
+    out = os.path.join(root, "es_central")
+    run_centralized.main(lr0 + ["--epochs", "5", "--patience", "1", "--output-dir", out])
+    assert steps(out, "epoch") == [1, 2], steps(out, "epoch")
+    run_centralized.main(lr0 + ["--epochs", "8", "--patience", "1", "--output-dir", out, "--resume"])
+    assert steps(out, "epoch") == [1, 2], steps(out, "epoch")
+    f = final(out)
+    assert f["stopped_early"] and f["best_epoch"] == 1, f
+    m = pd.read_csv(os.path.join(out, "metrics.csv"))
+    assert "val_bias" in m.columns and "test_bias" in m.columns
+    # the reported model is the best one (epoch 1)
+    assert abs(f["test"]["all"]["mse"] - m.loc[0, "test_mse"]) < 1e-5
+
+    # centralized, interrupted before stopping: 2 epochs, then resume -> epochs 3, 4, stop before 5
+    out = os.path.join(root, "es_central_mid")
+    run_centralized.main(lr0 + ["--epochs", "2", "--patience", "3", "--output-dir", out])
+    assert not final(out)["stopped_early"]
+    run_centralized.main(lr0 + ["--epochs", "10", "--patience", "3", "--output-dir", out, "--resume"])
+    assert steps(out, "epoch") == [1, 2, 3, 4], steps(out, "epoch")
+    assert final(out)["stopped_early"] and final(out)["best_epoch"] == 1
+
+    # FedAvg: 2 rounds, resume -> round 3, stop before round 4 (patience 2)
+    out = os.path.join(root, "es_fedavg")
+    run_federated.main(lr0 + ["--rounds", "2", "--local-epochs", "1", "--patience", "2", "--output-dir", out])
+    run_federated.main(lr0 + ["--rounds", "10", "--local-epochs", "1", "--patience", "2", "--output-dir", out,
+                              "--resume"])
+    assert steps(out, "round") == [1, 2, 3], steps(out, "round")
+    assert final(out)["stopped_early"] and final(out)["best_round"] == 1
+
+
 def main():
     root = tempfile.mkdtemp(prefix="fl_smoke_")
     try:
@@ -68,6 +112,9 @@ def main():
         run_federated.main(COMMON + ["--rounds", "3", "--local-epochs", "1", "--output-dir", out, "--resume"])
         check_run(out, "round", 3)
         print("\n[ok] FedAvg + resume\n")
+
+        check_early_stopping(root)
+        print("\n[ok] early stopping + resume\n")
 
         print("SMOKE TEST PASSED")
     finally:
