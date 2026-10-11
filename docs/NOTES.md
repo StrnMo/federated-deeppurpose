@@ -206,3 +206,19 @@ The smoke test runs with learning rate 0, so validation MSE never changes and th
 known in advance. It checks that training stops at the right step, that resuming a stopped run trains
 nothing more, that a resumed half-finished run stops at the right later step, and that the reported
 model is the best (first) one.
+
+---
+
+## Fix: resuming centralized / local-only runs on a GPU
+
+### The bug
+Resuming a centralized or local-only run on Colab's GPU failed with
+`TypeError: RNG state must be a torch.ByteTensor`. These scripts load the checkpoint directly onto
+the training device (`map_location=cuda`), which also moved the saved random-number-generator state
+to the GPU. PyTorch only accepts that state as a CPU tensor. FedAvg was not affected because it loads
+its checkpoint on the CPU. The earlier resume tests ran on CPU only, so they could not catch this.
+
+### The fix
+`set_rng_state` in `utils/engine.py` moves the saved RNG states back to the CPU before restoring them.
+Nothing else changes: model weights, optimizer state and the best model still load onto the GPU, and
+existing checkpoints on Drive resume as they are.

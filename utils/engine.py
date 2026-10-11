@@ -180,9 +180,10 @@ def rng_state():
 def set_rng_state(state):
     random.setstate(state["python"])
     np.random.set_state(state["numpy"])
-    torch.set_rng_state(state["torch"])
+    # RNG states must be CPU ByteTensors; a checkpoint loaded with map_location=cuda moves them to the GPU
+    torch.set_rng_state(state["torch"].cpu())
     if state.get("cuda") is not None and torch.cuda.is_available() and len(state["cuda"]) == torch.cuda.device_count():
-        torch.cuda.set_rng_state_all(state["cuda"])
+        torch.cuda.set_rng_state_all([s.cpu() for s in state["cuda"]])
 
 
 def prepare_run_dir(args, has_checkpoint=True):
