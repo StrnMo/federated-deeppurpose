@@ -302,3 +302,12 @@ The README states that the project builds on DeepPurpose and which parts are ada
 
 Not adapted: the federated code (`federated/`), `utils/trainer.py`, `utils/protocol.py`,
 `utils/data_split.py`, `utils/load_davis.py`, the experiment scripts, the notebook and the other tests.
+
+---
+
+## Final README edits
+
+The License and Author sections were removed; there is no project `LICENSE` file. An Acknowledgements
+section at the end credits DeepPurpose (adapted code, with its BSD-3-Clause license kept in
+`third_party/DeepPurpose_LICENSE` and the file headers unchanged) and the DAVIS data source. The Mittone et al.
+(2023) reference now has the full author list, pages and DOI.

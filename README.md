@@ -144,8 +144,9 @@ interaction that applied FedAvg to GraphDTA on the KIBA dataset.
   *Nature Biotechnology*, 29, 1046–1051.
 - McMahan, H. B., Moore, E., Ramage, D., Hampson, S., & Agüera y Arcas, B. (2017). Communication-efficient
   learning of deep networks from decentralized data. *Proceedings of AISTATS 2017*, PMLR 54, 1273–1282.
-- Mittone, G., et al. (2023). A Federated Learning Benchmark for Drug-Target Interaction.
-  *Companion Proceedings of the ACM Web Conference 2023 (WWW '23 Companion)*.
+- Mittone, G., Svoboda, F., Aldinucci, M., Lane, N. D., & Liò, P. (2023). A Federated Learning Benchmark
+  for Drug-Target Interaction. In *Companion Proceedings of the ACM Web Conference 2023 (WWW '23
+  Companion)*, pp. 1177–1181. https://doi.org/10.1145/3543873.3587687
 - Li, T., Sahu, A. K., Zaheer, M., Sanjabi, M., Talwalkar, A., & Smith, V. (2020). Federated optimization
   in heterogeneous networks. *Proceedings of MLSys 2020*.
 - Karimireddy, S. P., Kale, S., Mohri, M., Reddi, S. J., Stich, S. U., & Suresh, A. T. (2020). SCAFFOLD:
@@ -267,16 +268,6 @@ Use Colab's GPU for long runs; keep a local CPU environment for development.
    `MyDrive/federated-deeppurpose/outputs/<RUN_NAME>/`.
 5. If the session disconnects, run all cells again with the same `RUN_NAME`; training resumes from the last checkpoint.
 
-## License
+## Acknowledgements
 
-No license has been chosen yet. Suggested: **BSD-3-Clause**, the license of DeepPurpose, on which this
-project builds. A `LICENSE` file will be added once the license is confirmed. The DAVIS data in `data/`
-comes from Davis et al. (2011) and is not covered by this project's license.
-
-Parts of `utils/features.py`, `utils/engine.py` and `tests/verify_protein_cache.py` are adapted from
-DeepPurpose (marked in each file's header). DeepPurpose's BSD-3-Clause license is included in
-`third_party/DeepPurpose_LICENSE`.
-
-## Author
-
-[Name], [email]
+This project builds on DeepPurpose (Huang et al., 2020). Parts of utils/features.py, utils/engine.py and tests/verify_protein_cache.py are adapted from DeepPurpose (marked in each file’s header); DeepPurpose’s BSD-3-Clause license is included in third_party/DeepPurpose_LICENSE. The DAVIS data in data/ comes from Davis et al. (2011).
