@@ -1,3 +1,5 @@
+**Summary.** FedAvg closes 90% (MSE) / 87% (CI) of the gap between local-only and centralized training at convergence, and 73–74% at equal training budget. Local-only models fail on other clients' drugs: on the global test set every local model has R² < 0. The centralized reference reaches MSE 0.272 / CI 0.880.
+
 | Method | Training budget | MSE | Pearson | CI | R2 |
 |---|---|---|---|---|---|
 | Centralized | 68 epochs (best 53) | 0.272 | 0.815 | 0.880 | 0.66 |

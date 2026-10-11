@@ -1,3 +1,5 @@
+# Portions adapted from DeepPurpose (https://github.com/kexinhuang12345/DeepPurpose), BSD-3-Clause license
+# (see third_party/DeepPurpose_LICENSE): DTIDataset follows DeepPurpose's data_process_loader.
 """
 DeepPurpose MPNN-CNN featurisation of the evaluation protocol.
 

@@ -134,10 +134,25 @@ def collect(runs_dir):
 
 # ---------------------------------------------------------------- tables
 
+def summary_paragraph(s):
+    """The README's short 'Summary' text, with every number taken from the results."""
+    g = s["gap_closed"]
+    eq = sorted(round(100 * g["fedavg_equal"][m]) for m in ("mse", "ci"))
+    eq_txt = f"{eq[0]}%" if eq[0] == eq[1] else f"{eq[0]}–{eq[1]}%"
+    local_r2 = [s["per_client"]["local_global"][k]["r2"] for k in range(NUM_CLIENTS)]
+    local_txt = ("every local model has R² < 0" if max(local_r2) < 0
+                 else f"local models reach a mean R² of {np.mean(local_r2):.2f}")
+    c = s["methods"]["central"]
+    return (f"FedAvg closes {100 * g['fedavg_best']['mse']:.0f}% (MSE) / {100 * g['fedavg_best']['ci']:.0f}% (CI) "
+            f"of the gap between local-only and centralized training at convergence, and {eq_txt} at equal "
+            f"training budget. Local-only models fail on other clients' drugs: on the global test set "
+            f"{local_txt}. The centralized reference reaches MSE {c['mse']:.3f} / CI {c['ci']:.3f}.")
+
+
 def markdown(s):
     b = s["budget"]
     fb = b["fedavg"]
-    lines = []
+    lines = ["**Summary.** " + summary_paragraph(s), ""]
     rows = [
         ("Centralized", "central",
          f"{b['central']['epochs_run']} epochs (best {b['central']['best_epoch']})"),

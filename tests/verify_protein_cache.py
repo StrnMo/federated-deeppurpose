@@ -1,3 +1,5 @@
+# Portions adapted from DeepPurpose (https://github.com/kexinhuang12345/DeepPurpose), BSD-3-Clause license
+# (see third_party/DeepPurpose_LICENSE): deeppurpose_loader reproduces the DataLoader setup of DBTA.train.
 """
 Check that the cached protein encoding (utils.features.DTIDataset) gives exactly the same
 batches, predictions and trained weights as DeepPurpose's data_process_loader, and time both.

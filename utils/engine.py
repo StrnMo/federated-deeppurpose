@@ -1,3 +1,6 @@
+# Portions adapted from DeepPurpose (https://github.com/kexinhuang12345/DeepPurpose), BSD-3-Clause license
+# (see third_party/DeepPurpose_LICENSE): build_model follows DBTA.__init__; train_one_epoch and predict
+# follow the training and evaluation loops in DBTA.train and DBTA.test_.
 """
 Shared training utilities: device, model, train/evaluate, metrics, checkpoints, CSV logs.
 Used by the centralized, local-only and FedAvg experiments.

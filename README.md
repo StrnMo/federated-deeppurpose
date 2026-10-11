@@ -4,9 +4,20 @@ Federated learning (FedAvg) for drug–target binding affinity prediction on the
 built on DeepPurpose (MPNN drug encoder + CNN protein encoder). The 68 drugs are split across
 5 clients, so each client holds different drugs (non-IID). We compare three settings on the same data split:
 
-- **Centralized**: one model trained on all clients' training data (upper bound; requires sharing data).
+- **Centralized**: one model trained on all clients' training data (reference upper bound; requires sharing data).
 - **Local-only**: each client trains alone on its own data (lower bound; no collaboration).
-- **FedAvg**: clients train locally and only share model weights; the server averages them, weighted by sample count.
+- **FedAvg**: clients train locally and only share model weights (plus each client's label mean and sample
+  count once, for bias initialisation); the server averages the weights, weighted by sample count.
+
+This project builds on DeepPurpose (Huang et al., 2020): it uses DeepPurpose's MPNN-CNN model and
+featurisation, and adds a federated learning layer (client–server training, FedAvg aggregation, non-IID
+partitioning and federated evaluation).
+
+## Summary
+
+FedAvg closes 90% (MSE) / 87% (CI) of the gap between local-only and centralized training at convergence, and 73–74% at equal training budget. Local-only models fail on other clients' drugs: on the global test set every local model has R² < 0. The centralized reference reaches MSE 0.272 / CI 0.880.
+
+![Global test comparison](results/global_test_comparison.png)
 
 ## Setup
 
@@ -25,7 +36,10 @@ built on DeepPurpose (MPNN drug encoder + CNN protein encoder). The 68 drugs are
 | Local-only | max 100 epochs per client, patience 15 | clients stopped after 100 / 68 / 84 / 88 / 79 epochs |
 
 The FedAvg run was extended in three Colab sessions through checkpoint resume (round limit 50 → 100 → 150).
-Early stopping first triggered after round 137, so the result equals a single 150-round run.
+The run was extended because validation MSE was still improving; all decisions and model selection used
+validation data only. Early stopping first triggered after round 137, so the result is equivalent to a
+single 150-round run (resume was verified to be identical on CPU; on GPU, results may differ in the last
+decimals due to non-deterministic CUDA operations).
 
 ## Results
 
@@ -48,8 +62,6 @@ client, matching the centralized 100-epoch limit.
 |---|---|---|
 | Equal budget | 74% | 73% |
 | Best | 90% | 87% |
-
-![Global test comparison](results/global_test_comparison.png)
 
 ![Training curves](results/training_curves.png)
 
@@ -85,14 +97,15 @@ client, matching the centralized 100-epoch limit.
 1. **Local-only models do not transfer to other clients' drugs.** On their own test pairs they reach
    CI 0.75–0.86, but on the global test set (about 80% other clients' drugs) CI drops to 0.59–0.72
    and R² is below zero, i.e. worse than predicting the mean.
-2. **FedAvg recovers most of the centralized performance without sharing data.** On the global test
+2. **FedAvg recovers most of the centralized performance without sharing raw data.** On the global test
    set it closes 90% (MSE) and 87% (CI) of the local-to-centralized gap at convergence, and 73–74% at
    equal training budget.
-3. **FedAvg converges more slowly than centralized training.** It needs 127 rounds (254 local epochs)
-   to reach its best model; at the same 100-epoch budget it is clearly behind (CI 0.818 vs 0.880).
+3. **With these hyperparameters, FedAvg converges more slowly than centralized training.** Centralized
+   training reaches its best model at epoch 53, FedAvg at round 127 (254 local epochs). At a
+   100-epoch-equivalent budget, FedAvg is behind (CI 0.818 vs 0.880).
 4. **The main gain of federation is on other clients' drugs.** On each client's own test pairs, the
    converged FedAvg model improves on local-only for clients 0, 2 and 3 (largest for client 2:
-   CI 0.748 → 0.822), is about equal for client 1, and **does not benefit client 4** (MSE 0.423 vs
+   CI 0.748 → 0.822), is about equal for client 1, and **shows no measurable benefit for client 4** (MSE 0.423 vs
    0.410, CI 0.856 vs 0.859). At equal budget, FedAvg is behind local-only on every client's own drugs
    in MSE. Centralized training is best for every client.
 
@@ -105,9 +118,38 @@ client, matching the centralized 100-epoch limit.
 - **Server-held global validation set.** Model selection (best epoch/round, early stopping) uses the
   pooled validation sets of all clients. In a real deployment the server would not hold this data.
 - **Local client 0 reached the 100-epoch limit** without early stopping (its best epoch was the last).
+- **Shared, untuned hyperparameters.** Learning rate, batch size and local epochs were the same for all
+  methods and not tuned per method, which may disadvantage FedAvg.
+- **One small dataset.** Only DAVIS (68 drugs, about 13–16 drugs per client).
+- **Local-only baseline is the mean of individual client models.** An ensemble of local models
+  (averaging their predictions) would be a stronger non-federated baseline and is not included.
 
 All numbers above are computed by `experiments/generate_plots.py` from the result files in
 `results/runs/` (also written to `results/summary.md`).
+
+## Related work and references
+
+This project is an open, reproducible FedAvg framework built on DeepPurpose (Huang et al., 2020),
+evaluated on DAVIS (Davis et al., 2011) with a drug-based non-IID split and a per-client analysis that
+separates performance on a client's own drugs from performance on other clients' drugs. It uses the
+standard FedAvg algorithm (McMahan et al., 2017) and does not propose a new federated learning method.
+
+The closest prior work is Mittone et al. (2023), a federated learning benchmark for drug–target
+interaction that applied FedAvg to GraphDTA on the KIBA dataset.
+
+- Huang, K., Fu, T., Glass, L. M., Zitnik, M., Xiao, C., & Sun, J. (2020). DeepPurpose: a deep learning
+  library for drug–target interaction prediction. *Bioinformatics*, 36(22–23), 5545–5547.
+- Davis, M. I., Hunt, J. P., Herrgard, S., Ciceri, P., Wodicka, L. M., Pallares, G., Hocker, M.,
+  Treiber, D. K., & Zarrinkar, P. P. (2011). Comprehensive analysis of kinase inhibitor selectivity.
+  *Nature Biotechnology*, 29, 1046–1051.
+- McMahan, H. B., Moore, E., Ramage, D., Hampson, S., & Agüera y Arcas, B. (2017). Communication-efficient
+  learning of deep networks from decentralized data. *Proceedings of AISTATS 2017*, PMLR 54, 1273–1282.
+- Mittone, G., et al. (2023). A Federated Learning Benchmark for Drug-Target Interaction.
+  *Companion Proceedings of the ACM Web Conference 2023 (WWW '23 Companion)*.
+- Li, T., Sahu, A. K., Zaheer, M., Sanjabi, M., Talwalkar, A., & Smith, V. (2020). Federated optimization
+  in heterogeneous networks. *Proceedings of MLSys 2020*.
+- Karimireddy, S. P., Kale, S., Mohri, M., Reddi, S. J., Stich, S. U., & Suresh, A. T. (2020). SCAFFOLD:
+  Stochastic controlled averaging for federated learning. *Proceedings of ICML 2020*.
 
 ## Project Structure
 ```
@@ -131,6 +173,8 @@ federated-deeppurpose/
 │   ├── engine.py                      # Device, model, metrics, checkpoints, CSV logs
 │   └── trainer.py                     # Epoch loop with resume (baselines)
 ├── notebooks/colab_run.ipynb          # Run on Google Colab
+├── docs/
+│   └── NOTES.md                       # What changed in each step, why, and how it works
 ├── tests/
 │   ├── smoke_test.py                  # Quick CPU test of all scripts + resume
 │   └── verify_protein_cache.py        # Cached encoding == DeepPurpose encoding
@@ -138,6 +182,11 @@ federated-deeppurpose/
 │   ├── runs/                          # Result files of the three runs (CSV/JSON)
 │   ├── summary.md / summary.json      # Tables computed by generate_plots.py
 │   └── *.png / *.pdf                  # Figures
+├── third_party/
+│   └── DeepPurpose_LICENSE            # License of adapted DeepPurpose code (BSD-3-Clause)
+├── requirements.txt                   # Minimal dependency list
+├── requirements_fixed.txt             # Tested local environment (Python 3.10, CPU)
+├── requirements_colab.txt             # Extra packages installed on Colab
 └── README.md
 ```
 
@@ -147,11 +196,15 @@ federated-deeppurpose/
 - Add a cold-drug split (test drugs unseen by every client).
 - Evaluate on the KIBA dataset.
 - Study the robustness of federated DTI training to corrupted or manipulated clients.
+- Compare against an ensemble of local models, as in Mittone et al. (2023).
+- Tune FL-specific hyperparameters (local epochs, learning rate) and try FedProx (Li et al., 2020) /
+  SCAFFOLD (Karimireddy et al., 2020).
 
 ## Technologies
-- Python 3.10
 - DeepPurpose 0.1.5 (PyTorch backend), MPNN drug encoder + CNN protein encoder
 - NumPy, Pandas, Matplotlib, scikit-learn, lifelines
+- **Results** were produced on Google Colab: Tesla T4 GPU, Python 3.13, PyTorch 2.11 + CUDA.
+- **Tested local development environment:** Python 3.10 with CPU-only PyTorch 2.0.1 (`requirements_fixed.txt`).
 
 ## How to Run
 
@@ -176,6 +229,9 @@ python experiments/run_federated.py   --rounds 150 --local-epochs 2 --patience 1
 # Tables and figures from the result files in results/runs/
 python experiments/generate_plots.py
 ```
+
+`pip check` will report `ax-platform` and `dgllife` as missing. This is expected: DeepPurpose lists them
+as requirements, but they are not needed for MPNN-CNN, so DeepPurpose is installed with `--no-deps`.
 
 Common options: `--resume`, `--seed`, `--lr`, `--batch-size`, `--num-workers`, `--subsample 0.05` (quick tests),
 `--patience N` (early stopping: stop when val MSE has not improved for N epochs/rounds; off by default).
@@ -202,10 +258,25 @@ centralized model trains on the union of the client training sets.
 
 Use Colab's GPU for long runs; keep a local CPU environment for development.
 
-1. Push this repository to GitHub.
+1. Fork or clone this repository.
 2. Open `notebooks/colab_run.ipynb` in Colab (File → Open notebook → GitHub) and select a GPU runtime.
-3. In the config cells set `REPO_URL`, `EXPERIMENT` (`centralized`, `local` or `fedavg`), `RUN_NAME` and the hyperparameters.
+3. In the config cells set `REPO_URL` and `BRANCH` (the repository and branch the notebook clones,
+   default `master`), `EXPERIMENT` (`centralized`, `local` or `fedavg`), `RUN_NAME` and the hyperparameters.
 4. Run all cells. The notebook mounts Google Drive, clones the repo, installs the extra packages
    without replacing Colab's PyTorch, and writes checkpoints and CSVs to
    `MyDrive/federated-deeppurpose/outputs/<RUN_NAME>/`.
 5. If the session disconnects, run all cells again with the same `RUN_NAME`; training resumes from the last checkpoint.
+
+## License
+
+No license has been chosen yet. Suggested: **BSD-3-Clause**, the license of DeepPurpose, on which this
+project builds. A `LICENSE` file will be added once the license is confirmed. The DAVIS data in `data/`
+comes from Davis et al. (2011) and is not covered by this project's license.
+
+Parts of `utils/features.py`, `utils/engine.py` and `tests/verify_protein_cache.py` are adapted from
+DeepPurpose (marked in each file's header). DeepPurpose's BSD-3-Clause license is included in
+`third_party/DeepPurpose_LICENSE`.
+
+## Author
+
+[Name], [email]
