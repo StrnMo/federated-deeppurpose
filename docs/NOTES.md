@@ -222,3 +222,40 @@ its checkpoint on the CPU. The earlier resume tests ran on CPU only, so they cou
 `set_rng_state` in `utils/engine.py` moves the saved RNG states back to the CPU before restoring them.
 Nothing else changes: model weights, optimizer state and the best model still load onto the GPU, and
 existing checkpoints on Drive resume as they are.
+
+---
+
+## Step 7: comparison of centralized, local-only and FedAvg
+
+### What changed
+- **`experiments/generate_plots.py` was rewritten.** It no longer contains hard-coded numbers. It reads
+  the result files of the three runs from `results/runs/` and computes every number shown in the
+  README: training budgets, the equal-budget FedAvg round, the gap closed, and the per-client tables.
+  It writes `results/summary.md` and `results/summary.json` and five figures (PNG and PDF).
+- **The result files are in the repository** (`results/runs/`, CSV/JSON only, no `.pt` checkpoints),
+  so the tables and figures can be regenerated with `python experiments/generate_plots.py`.
+  The FedAvg folder is called `fedavg_full_e2_s42` in the repository. On Google Drive it is still
+  `fedavg_full_r50_e2_s42`: the "r50" in that name came from the first session, but the run went on
+  to round 137.
+- **Old figures removed:** `centralized_loss_curve`, `federated_comparison`, `performance_table` and
+  `combined_summary` showed hard-coded numbers from the first 10-epoch experiment.
+- **The README results section was replaced** with the new results, key findings, caveats and next steps.
+
+### How the numbers are defined
+- **Best model:** every method reports the epoch/round with the lowest validation MSE.
+- **FedAvg, equal budget:** the round with the lowest validation MSE among rounds 1–50, i.e. the
+  model a 50-round run would have selected. 50 rounds × 2 local epochs = 100 epochs of local training,
+  the same limit as centralized training. (Here the selected round happens to be round 50.)
+- **Local-only on the global test set:** the mean over the five client models.
+- **Gap closed** = (local − FedAvg) / (local − centralized). 100% would mean FedAvg matches
+  centralized training; 0% would mean it is no better than training alone.
+
+### What the results say, in short
+FedAvg closes most of the gap between isolated clients and centralized training: 87–90% at
+convergence, 73–74% at equal budget. Its main benefit is on drugs held by other clients, because
+local models do not transfer to those drugs. On a client's own drugs the gain is small, and client 4
+does not benefit at all. These are single-seed results on a random (warm) split; see the README caveats.
+
+`.gitignore` note: the rules `runs/` and `result/` (for files DeepPurpose writes in the project root)
+also matched `results/runs/`, so the result files were silently ignored. They are now anchored to the
+root (`/runs/`, `/result/`).

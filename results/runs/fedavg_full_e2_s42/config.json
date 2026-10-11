@@ -1,0 +1,17 @@
+{
+  "output_dir": "/content/drive/MyDrive/federated-deeppurpose/outputs/fedavg_full_r50_e2_s42",
+  "resume": true,
+  "device": "auto",
+  "seed": 42,
+  "split_seed": 42,
+  "lr": 0.001,
+  "batch_size": 128,
+  "num_workers": 2,
+  "num_clients": 5,
+  "subsample": null,
+  "init_bias": "label_mean",
+  "patience": 10,
+  "rounds": 150,
+  "local_epochs": 2,
+  "reset_client_optimizer": false
+}

@@ -1,201 +1,346 @@
 """
-Generate all visualization plots for the federated learning project.
-Run this script after centralized and federated training are complete.
+Comparison figures and tables from the saved run results (results/runs/).
+
+    python experiments/generate_plots.py
+
+Reads the CSV/JSON files written by run_centralized.py, run_federated.py and run_local.py,
+and writes to results/:
+    summary.md / summary.json      tables used in the README (all numbers computed here)
+    global_test_comparison.png     global test MSE and CI per method
+    per_client_test.png            each client's own test set, per method
+    training_curves.png            test MSE / CI vs training epochs (centralized vs FedAvg)
+    local_own_vs_global.png        local-only models on their own vs all clients' drugs
+    client_data_distribution.png   training pairs and drugs per client
+(each figure also as .pdf)
+
+FedAvg is reported twice:
+  - equal budget: the round with the lowest val MSE among rounds 1-50
+    (what a 50-round run would have selected; 50 rounds x 2 local epochs = 100 epochs)
+  - best: the round selected by the full run (lowest val MSE overall)
 """
 
-import matplotlib.pyplot as plt
-import numpy as np
 import os
+import sys
+import json
+import argparse
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 
-# Create results folder if it doesn't exist
-os.makedirs('results', exist_ok=True)
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 
-def plot_centralized_loss():
-    """Plot centralized training loss curve."""
-    # Data from your centralized training
-    epochs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    train_loss = [0.571, 0.585, 1.035, 1.102, 1.010, 0.619, 1.086, 0.733, 1.085, 1.006]
-    val_loss = [0.531, 1.172, 0.768, 0.513, 1.187, 0.625, 0.998, 1.069, 0.544, 0.558]
-    
-    plt.figure(figsize=(8, 5))
-    plt.plot(epochs, train_loss, 'b-o', label='Training Loss', linewidth=2, markersize=8)
-    plt.plot(epochs, val_loss, 'r-s', label='Validation Loss', linewidth=2, markersize=8)
-    plt.xlabel('Epoch', fontsize=12)
-    plt.ylabel('Loss', fontsize=12)
-    plt.title('Centralized Model Training (10 Epochs)', fontsize=14)
-    plt.legend(fontsize=11)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig('results/centralized_loss_curve.png', dpi=150)
-    plt.savefig('results/centralized_loss_curve.pdf')  # PDF for papers
-    plt.close()
-    print("✅ Saved: results/centralized_loss_curve.png")
+RUNS = {"central": "central_full_s42", "fedavg": "fedavg_full_e2_s42", "local": "local_full_s42"}
+EQUAL_BUDGET_ROUNDS = 50
+NUM_CLIENTS = 5
+METRICS = ("mse", "pearson", "ci", "r2")
 
-def plot_federated_comparison():
-    """Plot bar chart comparing federated clients to centralized baseline."""
-    clients = ['Client 0', 'Client 1', 'Client 2', 'Client 3', 'Client 4', 'Centralized']
-    c_index = [0.630, 0.693, 0.596, 0.669, 0.698, 0.731]
-    colors = ['#1f77b4'] * 5 + ['#d62728']
-    
-    plt.figure(figsize=(10, 6))
-    bars = plt.bar(clients, c_index, color=colors, edgecolor='black', linewidth=1)
-    plt.axhline(y=0.731, color='#d62728', linestyle='--', linewidth=2, 
-                label='Centralized Baseline (0.731)')
-    plt.ylabel('Concordance Index', fontsize=12)
-    plt.title('Federated Client Performance vs Centralized Baseline', fontsize=14)
-    plt.ylim(0.55, 0.75)
-    
-    # Add value labels on top of bars
-    for bar, val in zip(bars, c_index):
-        plt.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.003, 
-                 f'{val:.3f}', ha='center', va='bottom', fontsize=10, fontweight='bold')
-    
-    plt.legend(fontsize=11)
-    plt.grid(True, alpha=0.3, axis='y')
-    plt.tight_layout()
-    plt.savefig('results/federated_comparison.png', dpi=150)
-    plt.savefig('results/federated_comparison.pdf')
-    plt.close()
-    print("✅ Saved: results/federated_comparison.png")
+# reference categorical palette, slots 1-3 (validated all-pairs; aqua needs labels / table view)
+COLORS = {"central": "#2a78d6", "fedavg": "#eb6834", "local": "#1baf7a"}
+INK, INK_MUTED, GRID, SURFACE = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb"
+LABELS = {"central": "Centralized", "fedavg": "FedAvg", "local": "Local-only"}
 
-def plot_client_distribution():
-    """Plot client data distribution (samples and unique drugs)."""
-    clients = ['Client 0', 'Client 1', 'Client 2', 'Client 3', 'Client 4']
-    samples = [5746, 5746, 5746, 5746, 7072]
-    unique_drugs = [13, 13, 13, 13, 16]
-    
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-    
-    # Samples bar chart
-    bars1 = ax1.bar(clients, samples, color='steelblue', edgecolor='black')
-    ax1.set_ylabel('Number of Drug-Target Pairs', fontsize=12)
-    ax1.set_title('Samples per Client', fontsize=14)
-    ax1.grid(True, alpha=0.3, axis='y')
-    for bar, val in zip(bars1, samples):
-        ax1.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 100, 
-                 f'{val}', ha='center', va='bottom', fontsize=10)
-    
-    # Unique drugs bar chart
-    bars2 = ax2.bar(clients, unique_drugs, color='coral', edgecolor='black')
-    ax2.set_ylabel('Number of Unique Drugs', fontsize=12)
-    ax2.set_title('Unique Drugs per Client', fontsize=14)
-    ax2.grid(True, alpha=0.3, axis='y')
-    for bar, val in zip(bars2, unique_drugs):
-        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.5, 
-                 f'{val}', ha='center', va='bottom', fontsize=10)
-    
-    plt.tight_layout()
-    plt.savefig('results/client_data_distribution.png', dpi=150)
-    plt.savefig('results/client_data_distribution.pdf')
-    plt.close()
-    print("✅ Saved: results/client_data_distribution.png")
 
-def plot_performance_table():
-    """Create a summary table of all results."""
-    fig, ax = plt.subplots(figsize=(10, 3.5))
-    ax.axis('tight')
-    ax.axis('off')
-    
-    data = [
-        ['Model', 'MSE ↓', 'Pearson ↑', 'C-Index ↑'],
-        ['Centralized (10 epochs)', '0.615', '0.440', '0.731'],
-        ['Client 0 (5 epochs)', '0.822', '0.212', '0.630'],
-        ['Client 1 (5 epochs)', '0.774', '0.365', '0.693'],
-        ['Client 2 (5 epochs)', '0.474', '0.200', '0.596'],
-        ['Client 3 (5 epochs)', '0.721', '0.342', '0.669'],
-        ['Client 4 (5 epochs)', '0.894', '0.369', '0.698'],
+# ---------------------------------------------------------------- data
+
+def read_run(path):
+    out = {"metrics": pd.read_csv(os.path.join(path, "metrics.csv")),
+           "clients": pd.read_csv(os.path.join(path, "client_metrics.csv"))}
+    with open(os.path.join(path, "final_metrics.json")) as f:
+        out["final"] = json.load(f)
+    return out
+
+
+def config(path):
+    with open(os.path.join(path, "config.json")) as f:
+        return json.load(f)
+
+
+def client_test(clients, step_key, step):
+    """Per-client test metrics {k: {mse, pearson, ci, r2}} at one epoch/round from client_metrics.csv."""
+    rows = clients[(clients[step_key] == step) & (clients["split"] == "test")]
+    return {int(r["client"]): {m: float(r[m]) for m in METRICS}
+            for _, r in rows.iterrows() if r["client"] != "all"}
+
+
+def gap_closed(local, fed, central):
+    """(local - FedAvg) / (local - centralized): share of the local-to-centralized gap closed by FedAvg."""
+    return (local - fed) / (local - central)
+
+
+def collect(runs_dir):
+    central = read_run(os.path.join(runs_dir, RUNS["central"]))
+    fedavg = read_run(os.path.join(runs_dir, RUNS["fedavg"]))
+    local_dir = os.path.join(runs_dir, RUNS["local"])
+    local = [read_run(os.path.join(local_dir, f"client_{k}")) for k in range(NUM_CLIENTS)]
+    cfg = {"central": config(os.path.join(runs_dir, RUNS["central"])),
+           "fedavg": config(os.path.join(runs_dir, RUNS["fedavg"])),
+           "local": config(local_dir)}
+
+    s = {"methods": {}, "per_client": {}, "budget": {}, "gap_closed": {}}
+
+    # centralized: best epoch
+    cf = central["final"]
+    s["methods"]["central"] = {m: cf["test"]["all"][m] for m in METRICS}
+    s["per_client"]["central"] = {k: {m: cf["test"][str(k)][m] for m in METRICS} for k in range(NUM_CLIENTS)}
+    s["budget"]["central"] = {"max_epochs": cfg["central"]["epochs"], "patience": cfg["central"]["patience"],
+                              "epochs_run": int(central["metrics"]["epoch"].max()),
+                              "best_epoch": cf["best_epoch"], "stopped_early": cf["stopped_early"]}
+
+    # FedAvg best: round selected by the full run
+    ff, fm = fedavg["final"], fedavg["metrics"]
+    s["methods"]["fedavg_best"] = {m: ff["test"]["all"][m] for m in METRICS}
+    s["per_client"]["fedavg_best"] = {k: {m: ff["test"][str(k)][m] for m in METRICS} for k in range(NUM_CLIENTS)}
+
+    # FedAvg equal budget: lowest val MSE among rounds 1-50
+    first = fm[fm["round"] <= EQUAL_BUDGET_ROUNDS]
+    eq_round = int(first.loc[first["val_mse"].idxmin(), "round"])
+    row = fm[fm["round"] == eq_round].iloc[0]
+    s["methods"]["fedavg_equal"] = {m: float(row[f"test_{m}"]) for m in METRICS}
+    s["per_client"]["fedavg_equal"] = client_test(fedavg["clients"], "round", eq_round)
+
+    le = cfg["fedavg"]["local_epochs"]
+    s["budget"]["fedavg"] = {"max_rounds": cfg["fedavg"]["rounds"], "local_epochs": le,
+                             "patience": cfg["fedavg"]["patience"], "rounds_run": int(fm["round"].max()),
+                             "best_round": ff["best_round"], "stopped_early": ff["stopped_early"],
+                             "equal_budget_rounds": EQUAL_BUDGET_ROUNDS, "equal_budget_selected_round": eq_round}
+
+    # local-only: each client's best epoch; own test and global test
+    s["methods"]["local"] = {m: float(np.mean([l["final"]["test"]["all"][m] for l in local])) for m in METRICS}
+    s["per_client"]["local_own"] = {k: {m: local[k]["final"]["test"][str(k)][m] for m in METRICS}
+                                    for k in range(NUM_CLIENTS)}
+    s["per_client"]["local_global"] = {k: {m: local[k]["final"]["test"]["all"][m] for m in METRICS}
+                                       for k in range(NUM_CLIENTS)}
+    s["budget"]["local"] = {"max_epochs": cfg["local"]["epochs"], "patience": cfg["local"]["patience"],
+                            "per_client": {k: {"epochs_run": int(local[k]["metrics"]["epoch"].max()),
+                                               "best_epoch": local[k]["final"]["best_epoch"],
+                                               "stopped_early": local[k]["final"]["stopped_early"],
+                                               "n_train": None}
+                                           for k in range(NUM_CLIENTS)}}
+    summ = pd.read_csv(os.path.join(local_dir, "local_summary.csv"))
+    for _, r in summ.iterrows():
+        s["budget"]["local"]["per_client"][int(r["client"])]["n_train"] = int(r["n_train"])
+
+    # gap closed, global test
+    L, C = s["methods"]["local"], s["methods"]["central"]
+    for key in ("fedavg_equal", "fedavg_best"):
+        F = s["methods"][key]
+        s["gap_closed"][key] = {m: gap_closed(L[m], F[m], C[m]) for m in ("mse", "ci")}
+
+    return s, central, fedavg, local
+
+
+# ---------------------------------------------------------------- tables
+
+def markdown(s):
+    b = s["budget"]
+    fb = b["fedavg"]
+    lines = []
+    rows = [
+        ("Centralized", "central",
+         f"{b['central']['epochs_run']} epochs (best {b['central']['best_epoch']})"),
+        (f"FedAvg, equal budget (best of rounds 1-{fb['equal_budget_rounds']})", "fedavg_equal",
+         f"{fb['equal_budget_rounds']} rounds x {fb['local_epochs']} local epochs "
+         f"(selected round {fb['equal_budget_selected_round']})"),
+        ("FedAvg, best", "fedavg_best",
+         f"{fb['rounds_run']} rounds x {fb['local_epochs']} local epochs (best round {fb['best_round']})"),
+        ("Local-only (mean of 5 clients)", "local", "up to 100 epochs per client"),
     ]
-    
-    table = ax.table(cellText=data, loc='center', cellLoc='center', colWidths=[0.25, 0.15, 0.15, 0.15])
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.2, 1.8)
-    
-    # Highlight header row
-    for i in range(4):
-        table[(0, i)].set_facecolor('#4472C4')
-        table[(0, i)].set_text_props(weight='bold', color='white')
-    
-    # Highlight centralized row
-    for i in range(4):
-        table[(1, i)].set_facecolor('#E6F0FA')
-    
-    plt.title('Federated Learning Results Summary', fontsize=14, pad=20, fontweight='bold')
-    plt.savefig('results/performance_table.png', dpi=150, bbox_inches='tight')
-    plt.savefig('results/performance_table.pdf', bbox_inches='tight')
-    plt.close()
-    print("✅ Saved: results/performance_table.png")
+    lines.append("| Method | Training budget | MSE | Pearson | CI | R2 |")
+    lines.append("|---|---|---|---|---|---|")
+    for name, key, budget in rows:
+        m = s["methods"][key]
+        lines.append(f"| {name} | {budget} | {m['mse']:.3f} | {m['pearson']:.3f} | {m['ci']:.3f} | {m['r2']:.2f} |")
 
-def plot_combined_summary():
-    """Create a single combined figure with all plots."""
-    fig = plt.figure(figsize=(14, 10))
-    
-    # Subplot 1: Centralized loss curve
-    ax1 = fig.add_subplot(2, 2, 1)
-    epochs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    train_loss = [0.571, 0.585, 1.035, 1.102, 1.010, 0.619, 1.086, 0.733, 1.085, 1.006]
-    val_loss = [0.531, 1.172, 0.768, 0.513, 1.187, 0.625, 0.998, 1.069, 0.544, 0.558]
-    ax1.plot(epochs, train_loss, 'b-o', label='Training Loss')
-    ax1.plot(epochs, val_loss, 'r-s', label='Validation Loss')
-    ax1.set_xlabel('Epoch')
-    ax1.set_ylabel('Loss')
-    ax1.set_title('Centralized Training')
-    ax1.legend()
-    ax1.grid(True, alpha=0.3)
-    
-    # Subplot 2: Federated comparison
-    ax2 = fig.add_subplot(2, 2, 2)
-    clients = ['C0', 'C1', 'C2', 'C3', 'C4', 'Central']
-    c_index = [0.630, 0.693, 0.596, 0.669, 0.698, 0.731]
-    colors = ['#1f77b4'] * 5 + ['#d62728']
-    bars = ax2.bar(clients, c_index, color=colors)
-    ax2.axhline(y=0.731, color='#d62728', linestyle='--', linewidth=1.5)
-    ax2.set_ylabel('Concordance Index')
-    ax2.set_title('Federated vs Centralized')
-    ax2.set_ylim(0.55, 0.75)
-    for bar, val in zip(bars, c_index):
-        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.003, 
-                 f'{val:.3f}', ha='center', va='bottom', fontsize=8)
-    ax2.grid(True, alpha=0.3, axis='y')
-    
-    # Subplot 3: Client distribution (samples)
-    ax3 = fig.add_subplot(2, 2, 3)
-    samples = [5746, 5746, 5746, 5746, 7072]
-    ax3.bar(clients[:5], samples, color='steelblue')
-    ax3.set_ylabel('Samples')
-    ax3.set_title('Data per Client')
-    ax3.grid(True, alpha=0.3, axis='y')
-    
-    # Subplot 4: Client distribution (unique drugs)
-    ax4 = fig.add_subplot(2, 2, 4)
-    unique_drugs = [13, 13, 13, 13, 16]
-    ax4.bar(clients[:5], unique_drugs, color='coral')
-    ax4.set_ylabel('Unique Drugs')
-    ax4.set_title('Unique Drugs per Client')
-    ax4.grid(True, alpha=0.3, axis='y')
-    
-    plt.suptitle('Federated Learning for Drug-Target Interaction Prediction', fontsize=16, fontweight='bold')
-    plt.tight_layout()
-    plt.savefig('results/combined_summary.png', dpi=150, bbox_inches='tight')
-    plt.savefig('results/combined_summary.pdf', bbox_inches='tight')
-    plt.close()
-    print("✅ Saved: results/combined_summary.png")
+    lines.append("")
+    lines.append("| FedAvg | Gap closed, MSE | Gap closed, CI |")
+    lines.append("|---|---|---|")
+    for name, key in (("Equal budget", "fedavg_equal"), ("Best", "fedavg_best")):
+        g = s["gap_closed"][key]
+        lines.append(f"| {name} | {100 * g['mse']:.0f}% | {100 * g['ci']:.0f}% |")
+
+    lines.append("")
+    lines.append("| Client | Train pairs | Local-only (own) | FedAvg, equal budget | FedAvg, best | Centralized |")
+    lines.append("|---|---|---|---|---|---|")
+    pc = s["per_client"]
+    for k in range(NUM_CLIENTS):
+        cells = [f"{pc[key][k]['mse']:.3f} / {pc[key][k]['ci']:.3f}"
+                 for key in ("local_own", "fedavg_equal", "fedavg_best", "central")]
+        lines.append(f"| {k} | {b['local']['per_client'][k]['n_train']:,} | " + " | ".join(cells) + " |")
+    means = [f"{np.mean([pc[key][k]['mse'] for k in range(NUM_CLIENTS)]):.3f} / "
+             f"{np.mean([pc[key][k]['ci'] for k in range(NUM_CLIENTS)]):.3f}"
+             for key in ("local_own", "fedavg_equal", "fedavg_best", "central")]
+    lines.append("| Mean | | " + " | ".join(means) + " |")
+
+    lines.append("")
+    lines.append("| Local-only model | Best epoch | Epochs run | Own test MSE / CI | Global test MSE / CI |")
+    lines.append("|---|---|---|---|---|")
+    for k in range(NUM_CLIENTS):
+        pk = b["local"]["per_client"][k]
+        own, glob = pc["local_own"][k], pc["local_global"][k]
+        lines.append(f"| Client {k} | {pk['best_epoch']} | {pk['epochs_run']}"
+                     f"{'' if pk['stopped_early'] else ' (limit)'} | {own['mse']:.3f} / {own['ci']:.3f} | "
+                     f"{glob['mse']:.3f} / {glob['ci']:.3f} |")
+    return "\n".join(lines) + "\n"
+
+
+# ---------------------------------------------------------------- figures
+
+def style(ax, ylabel):
+    ax.set_facecolor(SURFACE)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+    for side in ("left", "bottom"):
+        ax.spines[side].set_color(GRID)
+    ax.tick_params(colors=INK_MUTED, labelsize=9)
+    ax.yaxis.grid(True, color=GRID, linewidth=0.8)
+    ax.set_axisbelow(True)
+    ax.set_ylabel(ylabel, color=INK_MUTED, fontsize=10)
+
+
+def save(fig, out_dir, name, bottom=0.0):
+    fig.patch.set_facecolor(SURFACE)
+    fig.tight_layout(rect=(0, bottom, 1, 1))
+    for ext in ("png", "pdf"):
+        fig.savefig(os.path.join(out_dir, f"{name}.{ext}"), dpi=150, facecolor=SURFACE)
+    plt.close(fig)
+    print(f"saved results/{name}.png")
+
+
+def fig_global(s, out_dir):
+    keys = ["local", "fedavg_equal", "fedavg_best", "central"]
+    names = ["Local-only\n(mean)", "FedAvg\nequal budget", "FedAvg\nbest", "Centralized"]
+    colors = [COLORS["local"], COLORS["fedavg"], COLORS["fedavg"], COLORS["central"]]
+    hatches = ["", "///", "", ""]
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+    for ax, metric, label in zip(axes, ("mse", "ci"), ("Test MSE (lower is better)", "Test CI (higher is better)")):
+        vals = [s["methods"][k][metric] for k in keys]
+        bars = ax.bar(names, vals, color=colors, hatch=hatches, edgecolor=SURFACE, linewidth=2, width=0.62)
+        for bar in bars[1:2]:
+            bar.set_edgecolor(COLORS["fedavg"])
+            bar.set_facecolor("none")
+            bar.set_linewidth(1.5)
+        # individual local-only clients as dots on the local bar
+        indiv = [s["per_client"]["local_global"][k][metric] for k in range(NUM_CLIENTS)]
+        ax.scatter([0] * len(indiv), indiv, s=22, color=INK_MUTED, zorder=3, label="individual local clients")
+        for i, (bar, v) in enumerate(zip(bars, vals)):
+            top = max(v, max(indiv)) if i == 0 else v  # local-only: label above its client dots
+            ax.annotate(f"{v:.3f}", (bar.get_x() + bar.get_width() / 2, top), xytext=(0, 5),
+                        textcoords="offset points", ha="center", fontsize=9, color=INK)
+        style(ax, label)
+        ax.set_ylim(*((0.5, 0.93) if metric == "ci" else (0, 1.0)))
+        ax.legend(frameon=False, fontsize=8, loc="upper right" if metric == "mse" else "upper left",
+                  labelcolor=INK_MUTED)
+    fig.suptitle("Global test set (6,011 pairs, all clients' drugs)", color=INK, fontsize=11)
+    save(fig, out_dir, "global_test_comparison")
+
+
+def fig_per_client(s, out_dir):
+    keys = [("local_own", "Local-only (own model)", COLORS["local"]),
+            ("fedavg_best", "FedAvg (best)", COLORS["fedavg"]),
+            ("central", "Centralized", COLORS["central"])]
+    x = np.arange(NUM_CLIENTS)
+    w = 0.26
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+    for ax, metric, label in zip(axes, ("mse", "ci"), ("Own test MSE (lower is better)", "Own test CI (higher is better)")):
+        for i, (key, name, color) in enumerate(keys):
+            vals = [s["per_client"][key][k][metric] for k in range(NUM_CLIENTS)]
+            ax.bar(x + (i - 1) * w, vals, w, color=color, edgecolor=SURFACE, linewidth=2, label=name)
+        ax.set_xticks(x, [f"Client {k}" for k in range(NUM_CLIENTS)])
+        style(ax, label)
+        ax.set_ylim(*((0.7, 0.93) if metric == "ci" else (0, 0.5)))  # headroom for the legend
+        ax.legend(frameon=False, fontsize=8, labelcolor=INK_MUTED, ncol=3, loc="upper left")
+    fig.suptitle("Each client's own test pairs (values in the README table)", color=INK, fontsize=11)
+    save(fig, out_dir, "per_client_test")
+
+
+def fig_curves(s, central, fedavg, out_dir):
+    cm, fm = central["metrics"], fedavg["metrics"]
+    le = s["budget"]["fedavg"]["local_epochs"]
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+    for ax, metric, label in zip(axes, ("mse", "ci"), ("Test MSE", "Test CI")):
+        ax.plot(cm["epoch"], cm[f"test_{metric}"], color=COLORS["central"], linewidth=2, label="Centralized")
+        ax.plot(fm["round"] * le, fm[f"test_{metric}"], color=COLORS["fedavg"], linewidth=2,
+                label=f"FedAvg (1 round = {le} local epochs)")
+        ax.axhline(s["methods"]["local"][metric], color=COLORS["local"], linewidth=2, linestyle="--",
+                   label="Local-only (mean, global test)")
+        # selected models
+        b = s["budget"]
+        sel = [(b["central"]["best_epoch"], s["methods"]["central"][metric], COLORS["central"]),
+               (b["fedavg"]["equal_budget_selected_round"] * le, s["methods"]["fedavg_equal"][metric], COLORS["fedavg"]),
+               (b["fedavg"]["best_round"] * le, s["methods"]["fedavg_best"][metric], COLORS["fedavg"])]
+        for xv, yv, c in sel:
+            ax.scatter([xv], [yv], s=64, color=c, edgecolor=SURFACE, linewidth=2, zorder=4)
+        ax.axvline(b["fedavg"]["equal_budget_rounds"] * le, color=INK_MUTED, linewidth=1, linestyle=":")
+        ax.annotate("equal budget (100 epochs)", (b["fedavg"]["equal_budget_rounds"] * le, 1.0),
+                    xycoords=("data", "axes fraction"), xytext=(0, 3), textcoords="offset points",
+                    fontsize=8, color=INK_MUTED, ha="center", va="bottom")
+        ax.set_xlabel("Training epochs (FedAvg: rounds x local epochs)", color=INK_MUTED, fontsize=10)
+        style(ax, label)
+    handles, names = axes[0].get_legend_handles_labels()
+    fig.legend(handles, names, loc="lower center", ncol=3, frameon=False, fontsize=9, labelcolor=INK_MUTED)
+    fig.suptitle("Test metrics during training (dots: models selected on validation MSE)", color=INK, fontsize=11)
+    save(fig, out_dir, "training_curves", bottom=0.08)
+
+
+def fig_local_gap(s, out_dir):
+    x = np.arange(NUM_CLIENTS)
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2))
+    for ax, metric, label in zip(axes, ("mse", "ci"), ("MSE (lower is better)", "CI (higher is better)")):
+        own = [s["per_client"]["local_own"][k][metric] for k in range(NUM_CLIENTS)]
+        glob = [s["per_client"]["local_global"][k][metric] for k in range(NUM_CLIENTS)]
+        ax.bar(x - 0.18, own, 0.36, color=COLORS["local"], edgecolor=SURFACE, linewidth=2, label="Own test pairs")
+        ax.bar(x + 0.18, glob, 0.36, facecolor="none", edgecolor=COLORS["local"], hatch="///", linewidth=1.5,
+               label="Global test pairs (mostly other clients' drugs)")
+        ax.set_xticks(x, [f"Client {k}" for k in range(NUM_CLIENTS)])
+        style(ax, label)
+        ax.set_ylim(*((0.5, 0.97) if metric == "ci" else (0, 1.12)))  # headroom for the legend
+        ax.legend(frameon=False, fontsize=8, labelcolor=INK_MUTED, loc="upper left")
+    fig.suptitle("Local-only models: own drugs vs all clients' drugs", color=INK, fontsize=11)
+    save(fig, out_dir, "local_own_vs_global")
+
+
+def fig_clients(out_dir):
+    from utils.protocol import load_protocol
+    proto = load_protocol()
+    x = np.arange(len(proto["clients"]))
+    n_train = [len(d["train"]) for d in proto["clients"]]
+    drugs = [pd.concat([d[s] for s in ("train", "val", "test")])["Drug"].nunique() for d in proto["clients"]]
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.8))
+    for ax, vals, label, fmt in ((axes[0], n_train, "Training pairs", "{:,}"), (axes[1], drugs, "Unique drugs", "{}")):
+        # neutral color: this chart is about the data, not a method
+        bars = ax.bar(x, vals, color=INK_MUTED, edgecolor=SURFACE, linewidth=2, width=0.6)
+        for bar, v in zip(bars, vals):
+            ax.annotate(fmt.format(v), (bar.get_x() + bar.get_width() / 2, v), xytext=(0, 4),
+                        textcoords="offset points", ha="center", fontsize=9, color=INK)
+        ax.set_xticks(x, [f"Client {k}" for k in x])
+        style(ax, label)
+    fig.suptitle("Drug-based non-IID partition (each client holds different drugs)", color=INK, fontsize=11)
+    save(fig, out_dir, "client_data_distribution")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--runs", default=os.path.join(ROOT, "results", "runs"))
+    parser.add_argument("--out", default=os.path.join(ROOT, "results"))
+    args = parser.parse_args()
+
+    s, central, fedavg, local = collect(args.runs)
+    with open(os.path.join(args.out, "summary.json"), "w") as f:
+        json.dump(s, f, indent=2)
+    md = markdown(s)
+    with open(os.path.join(args.out, "summary.md"), "w", encoding="utf-8") as f:
+        f.write(md)
+    print(md)
+
+    fig_global(s, args.out)
+    fig_per_client(s, args.out)
+    fig_curves(s, central, fedavg, args.out)
+    fig_local_gap(s, args.out)
+    fig_clients(args.out)
+
 
 if __name__ == "__main__":
-    print("=" * 50)
-    print("Generating Visualization Plots")
-    print("=" * 50)
-    plot_centralized_loss()
-    plot_federated_comparison()
-    plot_client_distribution()
-    plot_performance_table()
-    plot_combined_summary()
-    print("\n" + "=" * 50)
-    print("All plots saved to 'results/' folder")
-    print("Files created:")
-    print("  - centralized_loss_curve.png/.pdf")
-    print("  - federated_comparison.png/.pdf")
-    print("  - client_data_distribution.png/.pdf")
-    print("  - performance_table.png/.pdf")
-    print("  - combined_summary.png/.pdf")
-    print("=" * 50)
+    main()

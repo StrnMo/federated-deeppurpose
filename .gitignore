@@ -8,6 +8,7 @@ outputs/
 *.pt
 *.tmp
 
-# files written by DeepPurpose's own train()
-runs/
-result/
+# files written by DeepPurpose's own train() in the project root
+# (anchored with "/" so results/runs/ is still tracked)
+/runs/
+/result/
